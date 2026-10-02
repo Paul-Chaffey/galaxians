@@ -96,3 +96,10 @@ target_include_directories(synth_test PRIVATE src)
 target_compile_options(synth_test PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
 add_test(NAME synth_test COMMAND synth_test)
+
+# Renders every sound effect to WAV files for listening: sound_preview <dir>
+add_executable(sound_preview
+    tools/sound_preview.cpp
+    src/audio/Synth.cpp
+)
+target_include_directories(sound_preview PRIVATE src)

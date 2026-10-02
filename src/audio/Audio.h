@@ -35,9 +35,9 @@ private:
 
     static void mixCallback(void* userdata, SDL_AudioStream* stream, int additionalBytes, int totalBytes);
     void mix(float* out, int frames);
+    void start(game::Sound sound);
 
     std::array<Samples, size_t(game::Sound::Count)> samples_;
-    Samples hum_;
 
     SDL_AudioStream* stream_ = nullptr;
     std::mutex mutex_; // guards voices_ and pending_
@@ -46,7 +46,7 @@ private:
 
     // Audio thread only.
     std::vector<float> scratch_;
-    size_t humPosition_ = 0;
+    SwarmDrone drone_;
     float humGain_ = 0;
 
     std::atomic<bool> humOn_ = false;

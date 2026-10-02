@@ -6,6 +6,9 @@ AI pilot playing a real game. Press Start at any point to take over.
 
 All artwork and sound is original: the sprites are generated from ASCII art by
 `tools/make_atlas.py`, and the sound effects are synthesised in code at startup.
+The sound models the original board's circuits as documented by MAME's
+emulation: a monophonic tone generator stepped once per video frame, a 555
+"fire" oscillator, LFSR noise, and three LFO-swept 555s for the swarm drone.
 
 ## Features
 
@@ -93,11 +96,18 @@ src/
   audio/          sound synthesis and an SDL3 audio-stream mixer
 shaders/          GLSL, compiled to SPIR-V and embedded in the executable at build time
 tools/            make_atlas.py: builds assets/atlas.png and src/game/Atlas.h
+                  sound_preview.cpp: writes every sound effect to WAV files
 tests/            headless tests
 ```
 
 To change the sprites or font, edit `tools/make_atlas.py` and run
 `python tools/make_atlas.py`, then rebuild.
+
+To listen to the sound effects outside the game, edit `src/audio/Synth.cpp`, rebuild, then:
+
+```sh
+mkdir -p sounds && ./build/sound_preview sounds && pw-play sounds/4-dive.wav
+```
 
 ## Disclaimer
 

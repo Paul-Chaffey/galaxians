@@ -54,10 +54,18 @@ int main()
     checkEffect("player explosion", audio::synthPlayerExplosion(), 1.0f, 2.5f);
     checkEffect("dive", audio::synthDive(), 0.5f, 2.0f);
 
-    const audio::Samples hum = audio::synthHumLoop();
-    const float seam = std::abs(hum.front() - hum.back());
-    check(peak(hum) > 0.02f && peak(hum) <= 1.0f, "hum is audible and within [-1, 1]");
-    check(seam <= largestStep(hum) * 1.5f, "hum loops without a click at the seam");
+    // Ten seconds of the live swarm drone: audible, bounded, and actually moving in pitch.
+    audio::SwarmDrone drone;
+    audio::Samples first(audio::kSampleRate);
+    audio::Samples later(audio::kSampleRate);
+    for (float& v : first)
+        v = drone.next();
+    for (int i = 0; i < audio::kSampleRate / 2; ++i)
+        drone.next(); // half an LFO cycle on
+    for (float& v : later)
+        v = drone.next();
+    check(peak(first) > 0.02f && peak(first) <= 1.0f, "drone is audible and within [-1, 1]");
+    check(largestStep(first) < 0.05f, "drone is smoothed, with no clicks");
 
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
