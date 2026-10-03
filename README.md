@@ -114,3 +114,7 @@ mkdir -p sounds && ./build/sound_preview sounds && pw-play sounds/4-dive.wav
 This is an unofficial fan remake for learning and fun. It is not affiliated with
 or endorsed by Bandai Namco, which owns the original Galaxian game and trademark.
 No original game code, graphics or sound is used.
+
+## License
+
+The code in this repository is released under the [MIT License](LICENSE).
