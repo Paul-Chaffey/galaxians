@@ -4,6 +4,8 @@ A remake of the 1979 arcade shooter, written in C++20 on Vulkan 1.3 and SDL3.
 It runs as a self-playing attract-mode demo: title screen, score table, then an
 AI pilot playing a real game. Press Start at any point to take over.
 
+![The attract-mode demo pilot mid-game, with the CRT effect on](docs/screenshot.png)
+
 All artwork and sound is original: the sprites are generated from ASCII art by
 `tools/make_atlas.py`, and the sound effects are synthesised in code at startup.
 The sound models the original board's circuits as documented by MAME's
