@@ -62,8 +62,9 @@ which covers most devices from about 2021 onwards.
 
 ### Install
 
-A ready-built APK is in the repository: [galaxians.apk](galaxians.apk)
-([direct download](https://github.com/Paul-Chaffey/galaxians/raw/main/galaxians.apk)).
+Download `galaxians.apk` from the
+[latest release](https://github.com/Paul-Chaffey/galaxians/releases/latest)
+([direct link](https://github.com/Paul-Chaffey/galaxians/releases/latest/download/galaxians.apk)).
 Open that link on the device, or copy the file across, then open it and allow
 installs from that source when Android asks. Or, with USB debugging on:
 
@@ -88,11 +89,18 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties   # if ANDROID_HOME isn't set in
 ./gradlew assembleRelease
 ```
 
-The APK lands in `android/app/build/outputs/apk/release/app-release.apk`; copy
-it over `galaxians.apk` to update the one in the repository. It is
-signed with your debug key unless `android/keystore.properties` names a release
-keystore (see `android/app/build.gradle.kts`). Android only installs an update
-over an existing copy when both are signed with the same key.
+The APK lands in `android/app/build/outputs/apk/release/app-release.apk`. To
+publish it, attach it to a GitHub release as `galaxians.apk`:
+
+```sh
+cp android/app/build/outputs/apk/release/app-release.apk galaxians.apk
+gh release create v1.1 galaxians.apk --title "Galaxians 1.1" --notes "..."
+```
+
+Bump `versionCode` and `versionName` in `android/app/build.gradle.kts` first.
+The APK is signed with your debug key unless `android/keystore.properties` names
+a release keystore (see `android/app/build.gradle.kts`). Android only installs
+an update over an existing copy when both are signed with the same key.
 
 ### Playing
 
