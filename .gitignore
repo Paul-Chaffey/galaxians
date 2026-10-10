@@ -3,3 +3,12 @@ build-*/
 .cache/
 compile_commands.json
 sounds/
+android/.gradle/
+android/.kotlin/
+android/app/build/
+android/app/.cxx/
+android/build/
+android/local.properties
+android/keystore.properties
+*.jks
+*.keystore

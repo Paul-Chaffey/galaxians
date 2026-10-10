@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Builds assets/atlas.png and src/game/Atlas.h from the ASCII pixel art below.
+"""Builds assets/atlas.png and src/game/Atlas.h from the ASCII pixel art below,
+and the Android launcher icons from the player's ship.
 
 Run from anywhere: python tools/make_atlas.py
 Each sprite gets its own 16x16 cell in a 128x128 atlas. '.' is transparent;
@@ -182,6 +183,50 @@ FLAG = [
     "Y......",
 ]
 
+# On-screen touch controls (Android). The button is tinted when drawn; the
+# arrow points left and is mirrored for the right button.
+BUTTON = [
+    ".....WWWWW.....",
+    "...WWGGGGGWW...",
+    "..WGGGGGGGGGW..",
+    ".WGGGGGGGGGGGW.",
+    ".WGGGGGGGGGGGW.",
+    "WGGGGGGGGGGGGGW",
+    "WGGGGGGGGGGGGGW",
+    "WGGGGGGGGGGGGGW",
+    "WGGGGGGGGGGGGGW",
+    "WGGGGGGGGGGGGGW",
+    ".WGGGGGGGGGGGW.",
+    ".WGGGGGGGGGGGW.",
+    "..WGGGGGGGGGW..",
+    "...WWGGGGGWW...",
+    ".....WWWWW.....",
+]
+
+ARROW = [
+    "....W....",
+    "...WW....",
+    "..WWWWWWW",
+    ".WWWWWWWW",
+    "WWWWWWWWW",
+    ".WWWWWWWW",
+    "..WWWWWWW",
+    "...WW....",
+    "....W....",
+]
+
+FIRE_ICON = [
+    "....Y....",
+    ".Y..Y..Y.",
+    "..Y.Y.Y..",
+    "...YYY...",
+    "YYYYWYYYY",
+    "...YYY...",
+    "..Y.Y.Y..",
+    ".Y..Y..Y.",
+    "....Y....",
+]
+
 # 5x7 glyphs, drawn in white so text can be tinted any colour.
 FONT_CHARS = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.!:"
 FONT_CELL = 8
@@ -241,6 +286,8 @@ FLAGSHIP_PALETTE = {"Y": YELLOW, "R": (0xFF, 0x60, 0x00), "r": RED}
 SHOT_PALETTE = {"W": (0xFF, 0xFF, 0xFF), "Y": YELLOW}
 FLAG_PALETTE = {"Y": YELLOW, "R": RED}
 EXPLOSION_PALETTE = {"W": (0xFF, 0xFF, 0xFF), "Y": YELLOW, "R": RED, "B": BLUE}
+BUTTON_PALETTE = {"W": (0xFF, 0xFF, 0xFF), "G": (0x50, 0x50, 0x50)}
+ICON_PALETTE = {"W": (0xFF, 0xFF, 0xFF), "Y": YELLOW}
 
 
 def alien_palette(body, wings):
@@ -273,8 +320,11 @@ SPRITES = [
     ("kPlayerExplosion1", PLAYER_EXPLOSION_1, EXPLOSION_PALETTE),
     ("kPlayerExplosion2", PLAYER_EXPLOSION_2, EXPLOSION_PALETTE),
     ("kPlayerExplosion3", PLAYER_EXPLOSION_3, EXPLOSION_PALETTE),
+    ("kButton", BUTTON, BUTTON_PALETTE),
+    ("kArrow", ARROW, ICON_PALETTE),
+    ("kFireIcon", FIRE_ICON, ICON_PALETTE),
 ]
-ASYMMETRIC = {"kFlag"}
+ASYMMETRIC = {"kFlag", "kArrow"}
 
 
 def validate(name, art, palette):
@@ -302,7 +352,33 @@ def write_png(path, width, height, rgba_rows):
     path.write_bytes(png)
 
 
+# Android launcher icon sizes (pixels) by screen density.
+ICON_SIZES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+ICON_BACKGROUND = (0x00, 0x00, 0x18)
+
+
+def write_icons():
+    """The ship, scaled up by whole pixels on a night-sky square."""
+    art_w, art_h = len(SHIP[0]), len(SHIP)
+    for density, size in ICON_SIZES.items():
+        scale = max(1, size * 2 // 3 // art_w)
+        ox = (size - art_w * scale) // 2
+        oy = (size - art_h * scale) // 2
+        rows = []
+        for y in range(size):
+            row = []
+            for x in range(size):
+                ax, ay = (x - ox) // scale, (y - oy) // scale
+                ch = SHIP[ay][ax] if 0 <= ax < art_w and 0 <= ay < art_h and x >= ox and y >= oy else "."
+                row += list(SHIP_PALETTE[ch] if ch != "." else ICON_BACKGROUND) + [255]
+            rows.append(row)
+        out = ROOT / "android" / "app" / "src" / "main" / "res" / f"mipmap-{density}"
+        out.mkdir(parents=True, exist_ok=True)
+        write_png(out / "ic_launcher.png", size, size, rows)
+
+
 def main():
+    write_icons()
     pixels = [[0] * (ATLAS_SIZE * 4) for _ in range(ATLAS_SIZE)]
     cells_per_row = ATLAS_SIZE // CELL
     rects = []

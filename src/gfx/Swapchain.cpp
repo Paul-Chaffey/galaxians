@@ -46,6 +46,14 @@ void Swapchain::recreate(VkExtent2D windowPixels)
     vkDestroySwapchainKHR(ctx_.device(), old, nullptr);
 }
 
+void Swapchain::destroy()
+{
+    destroyImageResources();
+    if (swapchain_)
+        vkDestroySwapchainKHR(ctx_.device(), swapchain_, nullptr);
+    swapchain_ = VK_NULL_HANDLE;
+}
+
 void Swapchain::create(VkExtent2D windowPixels, VkSwapchainKHR oldSwapchain)
 {
     VkPhysicalDevice gpu = ctx_.physicalDevice();
@@ -84,7 +92,12 @@ void Swapchain::create(VkExtent2D windowPixels, VkSwapchainKHR oldSwapchain)
     info.imageArrayLayers = 1;
     info.imageUsage = usage;
     info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    info.preTransform = caps.currentTransform;
+    // On a rotated phone, let the compositor turn the image rather than drawing
+    // it rotated; this game is cheap enough that the extra pass doesn't matter.
+    info.preTransform = (caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+                            ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+                            : caps.currentTransform;
+    rotatedByCompositor_ = info.preTransform != caps.currentTransform;
     info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     info.presentMode = VK_PRESENT_MODE_FIFO_KHR; // vsync; always supported
     info.clipped = VK_TRUE;

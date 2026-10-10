@@ -22,6 +22,7 @@ emulation: a monophonic tone generator stepped once per video frame, a 555
 - Attract mode with an AI demo pilot that dodges bullets and leads its shots
 - Deterministic 60 Hz game logic with render interpolation, smooth on 144 Hz displays
 - Keyboard and hot-pluggable gamepads, borderless fullscreen, saved high score
+- Android build: a sideloadable APK with on-screen buttons or a Bluetooth gamepad
 
 ## Requirements
 
@@ -53,6 +54,52 @@ cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build-release
 ```
 
+## Android
+
+The Android build is an APK you install directly; it is not on any app store.
+It needs a 64-bit phone or tablet running Android 13 or later with Vulkan 1.3,
+which covers most devices from about 2021 onwards.
+
+### Install
+
+Copy `app-release.apk` to the device and open it, allowing installs from that
+source when Android asks. Or, with USB debugging on:
+
+```sh
+adb install -r android/app/build/outputs/apk/release/app-release.apk
+```
+
+### Build
+
+You need the Android SDK with NDK 28.2.13676358, CMake 3.31.6 and platform 36,
+plus JDK 21 for Gradle (Gradle finds it even if your default `java` is newer).
+SDL is built from source, from the submodule:
+
+```sh
+git submodule update --init
+sdkmanager "ndk;28.2.13676358" "cmake;3.31.6" "platforms;android-36" "build-tools;36.0.0"
+cd android
+echo "sdk.dir=$ANDROID_HOME" > local.properties   # if ANDROID_HOME isn't set in your shell
+./gradlew assembleRelease
+```
+
+The APK lands in `android/app/build/outputs/apk/release/app-release.apk`. It is
+signed with your debug key unless `android/keystore.properties` names a release
+keystore (see `android/app/build.gradle.kts`). Android only installs an update
+over an existing copy when both are signed with the same key.
+
+### Playing
+
+Hold the phone either way up. In portrait the playfield sits at the top with the
+buttons below it; in landscape the buttons are in the side bars. Left and Right
+are on the left, Fire on the right, and Fire also starts a game. Several fingers
+work at once.
+
+Pair a Bluetooth gamepad in Android's settings and it works like a desktop
+gamepad; the on-screen buttons hide once you use it and come back when you touch
+the screen. Back quits. The game pauses in the background and the high score is
+saved when you leave.
+
 ## Controls
 
 | Action      | Keyboard                    | Gamepad              |
@@ -80,6 +127,7 @@ ctest --test-dir build --output-on-failure
 - `world_test` covers scoring, diving, lives, game flow, determinism and the
   demo pilot's performance.
 - `synth_test` checks the generated sound effects.
+- `touch_layout_test` checks where the Android playfield and on-screen buttons go.
 
 To check rendering, run with synchronization validation and the frame-pacing log:
 
@@ -91,13 +139,15 @@ VK_LAYER_VALIDATE_SYNC=true GALAXIANS_STATS=1 ./build/galaxians
 
 ```
 src/
-  main.cpp        window, main loop (fixed 60 Hz ticks), hotkeys, high score file
-  app/            keyboard and gamepad input, frame-pacing statistics
+  main.cpp        window, main loop (fixed 60 Hz ticks), hotkeys, high score file, Android lifecycle
+  app/            keyboard, gamepad and touch input, Android screen layout, frame-pacing statistics
   gfx/            Vulkan: device, swapchain, sprite batching, starfield, scale-up and CRT pass
   game/           World (game rules), Game (attract and game states), DemoPilot, HUD, text
   audio/          sound synthesis and an SDL3 audio-stream mixer
 shaders/          GLSL, compiled to SPIR-V and embedded in the executable at build time
-tools/            make_atlas.py: builds assets/atlas.png and src/game/Atlas.h
+android/          Gradle project for the APK; it builds the same sources through CMakeLists.txt
+external/SDL/     SDL 3 source (git submodule), for the Android build
+tools/            make_atlas.py: builds assets/atlas.png, src/game/Atlas.h and the Android icons
                   sound_preview.cpp: writes every sound effect to WAV files
 tests/            headless tests
 ```

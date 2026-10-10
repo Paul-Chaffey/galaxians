@@ -21,6 +21,13 @@ public:
 
     // Caller must ensure the device is idle.
     void recreate(VkExtent2D windowPixels);
+    // Releases the swapchain so the surface can be destroyed; recreate() builds a new one.
+    void destroy();
+
+    // True when the display is rotated relative to the swapchain images and the
+    // compositor turns them. Presents then report VK_SUBOPTIMAL_KHR, which does
+    // not mean the swapchain needs rebuilding.
+    bool rotatedByCompositor() const { return rotatedByCompositor_; }
 
     VkSwapchainKHR handle() const { return swapchain_; }
     VkFormat format() const { return format_; }
@@ -40,6 +47,7 @@ private:
     std::vector<VkImage> images_;
     std::vector<VkImageView> views_;
     std::vector<VkSemaphore> renderFinished_;
+    bool rotatedByCompositor_ = false;
 };
 
 } // namespace gfx

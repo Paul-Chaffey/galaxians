@@ -96,8 +96,7 @@ VulkanContext::~VulkanContext()
         vmaDestroyAllocator(allocator_);
     if (device_)
         vkDestroyDevice(device_, nullptr);
-    if (surface_)
-        SDL_Vulkan_DestroySurface(instance_, surface_, nullptr);
+    destroySurface();
     if (debugMessenger_) {
         auto destroy = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
             vkGetInstanceProcAddr(instance_, "vkDestroyDebugUtilsMessengerEXT"));
@@ -105,6 +104,28 @@ VulkanContext::~VulkanContext()
     }
     if (instance_)
         vkDestroyInstance(instance_, nullptr);
+}
+
+void VulkanContext::destroySurface()
+{
+    if (surface_)
+        SDL_Vulkan_DestroySurface(instance_, surface_, nullptr);
+    surface_ = VK_NULL_HANDLE;
+}
+
+bool VulkanContext::createSurface(SDL_Window* window)
+{
+    if (!SDL_Vulkan_CreateSurface(window, instance_, nullptr, &surface_)) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_GPU, "SDL_Vulkan_CreateSurface: %s", SDL_GetError());
+        surface_ = VK_NULL_HANDLE;
+        return false;
+    }
+    // The queue was picked for the first surface; a new one must work with it too.
+    VkBool32 present = VK_FALSE;
+    VK_CHECK(vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice_, queueFamily_, surface_, &present));
+    if (!present)
+        throw std::runtime_error("The GPU can no longer present to the window");
+    return true;
 }
 
 void VulkanContext::createInstance()

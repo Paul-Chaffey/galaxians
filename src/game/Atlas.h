@@ -24,6 +24,9 @@ inline constexpr gfx::AtlasRect kExplosion4{112, 16, 15, 11};
 inline constexpr gfx::AtlasRect kPlayerExplosion1{0, 32, 15, 11};
 inline constexpr gfx::AtlasRect kPlayerExplosion2{16, 32, 15, 11};
 inline constexpr gfx::AtlasRect kPlayerExplosion3{32, 32, 15, 11};
+inline constexpr gfx::AtlasRect kButton{48, 32, 15, 15};
+inline constexpr gfx::AtlasRect kArrow{64, 32, 9, 9};
+inline constexpr gfx::AtlasRect kFireIcon{80, 32, 9, 9};
 
 // Font: glyph i of kFontChars is the 8x8 cell at
 // (kFontX + (i % kFontColumns) * kGlyphSize, kFontY + (i / kFontColumns) * kGlyphSize).

@@ -68,6 +68,7 @@ void setViewport(VkCommandBuffer cmd, const VkViewport& viewport, VkExtent2D ext
 
 Renderer::Renderer(SDL_Window* window, const std::string& atlasPath)
     : window_(window)
+    , atlasPath_(atlasPath)
     , ctx_(window)
     , swapchain_(ctx_, windowPixels())
     , starfield_(ctx_, kOffscreenFormat)
@@ -115,6 +116,7 @@ Renderer::~Renderer()
 {
     VkDevice device = ctx_.device();
     vkDeviceWaitIdle(device);
+    overlay_.reset();
     for (Frame& frame : frames_) {
         vkDestroyFence(device, frame.inFlight, nullptr);
         vkDestroySemaphore(device, frame.imageAvailable, nullptr);
@@ -139,6 +141,24 @@ void Renderer::createPresentPipeline()
     desc.colorFormat = swapchain_.format();
     presentPipeline_ = createGraphicsPipeline(ctx_.device(), desc);
     presentFormat_ = swapchain_.format();
+
+    overlay_.reset();
+    overlay_.emplace(ctx_, atlasPath_, presentFormat_, kFramesInFlight);
+}
+
+void Renderer::releaseSurface()
+{
+    if (surfaceLost_)
+        return;
+    vkDeviceWaitIdle(ctx_.device());
+    swapchain_.destroy();
+    ctx_.destroySurface();
+    surfaceLost_ = true;
+}
+
+void Renderer::setGameViewport(float x, float y, float width, float height)
+{
+    gameViewport_ = VkViewport{x, y, width, height, 0.0f, 1.0f};
 }
 
 VkExtent2D Renderer::windowPixels() const
@@ -154,6 +174,12 @@ bool Renderer::recreateSwapchain()
     if (size.width == 0 || size.height == 0)
         return false; // minimised; try again later
 
+    if (surfaceLost_) {
+        if (!ctx_.createSurface(window_))
+            return false; // the window has no surface yet; try again later
+        surfaceLost_ = false;
+    }
+
     vkDeviceWaitIdle(ctx_.device());
     swapchain_.recreate(size);
     if (swapchain_.format() != presentFormat_)
@@ -162,9 +188,10 @@ bool Renderer::recreateSwapchain()
     return true;
 }
 
-void Renderer::drawFrame(const StarfieldState& stars, std::span<const Sprite> sprites)
+void Renderer::drawFrame(const StarfieldState& stars, std::span<const Sprite> sprites,
+                         std::span<const Sprite> overlay)
 {
-    if (swapchainDirty_ && !recreateSwapchain())
+    if ((swapchainDirty_ || surfaceLost_) && !recreateSwapchain())
         return;
 
     VkDevice device = ctx_.device();
@@ -179,8 +206,14 @@ void Renderer::drawFrame(const StarfieldState& stars, std::span<const Sprite> sp
         swapchainDirty_ = true;
         return;
     }
-    if (acquire == VK_SUBOPTIMAL_KHR)
-        swapchainDirty_ = true; // still usable; rebuild after presenting
+    if (acquire == VK_ERROR_SURFACE_LOST_KHR) {
+        releaseSurface();
+        return;
+    }
+    if (acquire == VK_SUBOPTIMAL_KHR) {
+        if (!swapchain_.rotatedByCompositor())
+            swapchainDirty_ = true; // still usable; rebuild after presenting
+    }
     else if (acquire != VK_SUCCESS)
         vkFail(acquire, "vkAcquireNextImageKHR", __FILE__, __LINE__);
 
@@ -188,7 +221,7 @@ void Renderer::drawFrame(const StarfieldState& stars, std::span<const Sprite> sp
     VK_CHECK(vkResetFences(device, 1, &frame.inFlight));
     VK_CHECK(vkResetCommandPool(device, frame.pool, 0));
 
-    record(frame.cmd, imageIndex, stars, sprites);
+    record(frame.cmd, imageIndex, stars, sprites, overlay);
 
     VkSemaphore renderFinished = swapchain_.renderFinished(imageIndex);
 
@@ -221,16 +254,18 @@ void Renderer::drawFrame(const StarfieldState& stars, std::span<const Sprite> sp
     present.pImageIndices = &imageIndex;
 
     VkResult presented = vkQueuePresentKHR(ctx_.queue(), &present);
-    if (presented == VK_ERROR_OUT_OF_DATE_KHR || presented == VK_SUBOPTIMAL_KHR)
-        swapchainDirty_ = true;
-    else if (presented != VK_SUCCESS)
-        vkFail(presented, "vkQueuePresentKHR", __FILE__, __LINE__);
-
     frameIndex_ = (frameIndex_ + 1) % kFramesInFlight;
+    if (presented == VK_ERROR_OUT_OF_DATE_KHR ||
+        (presented == VK_SUBOPTIMAL_KHR && !swapchain_.rotatedByCompositor()))
+        swapchainDirty_ = true;
+    else if (presented == VK_ERROR_SURFACE_LOST_KHR)
+        releaseSurface();
+    else if (presented != VK_SUCCESS && presented != VK_SUBOPTIMAL_KHR)
+        vkFail(presented, "vkQueuePresentKHR", __FILE__, __LINE__);
 }
 
-void Renderer::record(VkCommandBuffer cmd, uint32_t imageIndex,
-                      const StarfieldState& stars, std::span<const Sprite> sprites)
+void Renderer::record(VkCommandBuffer cmd, uint32_t imageIndex, const StarfieldState& stars,
+                      std::span<const Sprite> sprites, std::span<const Sprite> overlay)
 {
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -265,7 +300,7 @@ void Renderer::record(VkCommandBuffer cmd, uint32_t imageIndex,
                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
 
     beginColorRendering(cmd, swapchain_.view(imageIndex), extent, {{0.0f, 0.0f, 0.0f, 1.0f}});
-    const VkViewport viewport = letterbox(kVirtualSize, extent);
+    const VkViewport viewport = gameViewport_ ? *gameViewport_ : letterbox(kVirtualSize, extent);
     setViewport(cmd, viewport, extent);
     const PresentPushConstants push{crtEnabled_ ? 1u : 0u, viewport.height / float(kVirtualSize.height)};
     vkCmdPushConstants(cmd, presentLayout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
@@ -273,6 +308,11 @@ void Renderer::record(VkCommandBuffer cmd, uint32_t imageIndex,
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, presentLayout_, 0, 1,
                             &presentBinding_.set, 0, nullptr);
     vkCmdDraw(cmd, 3, 1, 0, 0);
+
+    if (!overlay.empty()) {
+        setViewport(cmd, {0, 0, float(extent.width), float(extent.height), 0, 1}, extent);
+        overlay_->draw(cmd, frameIndex_, extent, overlay);
+    }
     vkCmdEndRendering(cmd);
 
     // The destination stage must match the stage the render-finished semaphore

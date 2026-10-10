@@ -9,8 +9,21 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
 
-find_package(Vulkan 1.3 REQUIRED COMPONENTS glslc)
-find_package(SDL3 REQUIRED CONFIG)
+if(ANDROID)
+    # Built by Gradle (see android/). The NDK has the Vulkan headers and loader
+    # and a glslc, and SDL is built from the submodule, whose Java half the APK
+    # also uses.
+    add_subdirectory(external/SDL EXCLUDE_FROM_ALL)
+    find_program(GLSLC glslc REQUIRED
+        HINTS ${ANDROID_NDK}/shader-tools/${ANDROID_HOST_TAG} ${ANDROID_NDK}/shader-tools/linux-x86_64)
+    find_library(VULKAN_LIBRARY vulkan REQUIRED)
+    add_library(Vulkan::Vulkan INTERFACE IMPORTED)
+    target_link_libraries(Vulkan::Vulkan INTERFACE ${VULKAN_LIBRARY})
+else()
+    find_package(Vulkan 1.3 REQUIRED COMPONENTS glslc)
+    find_package(SDL3 REQUIRED CONFIG)
+    set(GLSLC Vulkan::glslc)
+endif()
 
 include(FetchContent)
 FetchContent_Declare(VulkanMemoryAllocator
@@ -33,14 +46,14 @@ foreach(shader ${SHADER_SOURCES})
     set(output ${SHADER_OUT_DIR}/${name}.spv.inc)
     add_custom_command(
         OUTPUT ${output}
-        COMMAND Vulkan::glslc --target-env=vulkan1.3 -mfmt=c -o ${output} ${CMAKE_SOURCE_DIR}/${shader}
+        COMMAND ${GLSLC} --target-env=vulkan1.3 -mfmt=c -o ${output} ${CMAKE_SOURCE_DIR}/${shader}
         DEPENDS ${shader}
         COMMENT "Compiling ${shader}"
         VERBATIM)
     list(APPEND SHADER_OUTPUTS ${output})
 endforeach()
 
-add_executable(galaxians
+set(GAME_SOURCES
     src/main.cpp
     src/gfx/VulkanContext.cpp
     src/gfx/Swapchain.cpp
@@ -58,9 +71,19 @@ add_executable(galaxians
     src/audio/Audio.cpp
     src/app/Controls.cpp
     src/app/FrameStats.cpp
+    src/app/ScreenLayout.cpp
+    src/app/TouchControls.cpp
     src/gfx/VmaImpl.cpp
     ${SHADER_OUTPUTS}
 )
+
+if(ANDROID)
+    # SDLActivity loads the game as libmain.so and calls its SDL_main.
+    add_library(galaxians SHARED ${GAME_SOURCES})
+    set_target_properties(galaxians PROPERTIES OUTPUT_NAME main)
+else()
+    add_executable(galaxians ${GAME_SOURCES})
+endif()
 
 target_include_directories(galaxians PRIVATE src ${SHADER_OUT_DIR})
 target_link_libraries(galaxians PRIVATE Vulkan::Vulkan SDL3::SDL3 GPUOpen::VulkanMemoryAllocator)
@@ -68,6 +91,11 @@ target_compile_options(galaxians PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic -Wno-missing-field-initializers>)
 # Third-party implementation; its warnings are not ours to fix.
 set_source_files_properties(src/gfx/VmaImpl.cpp PROPERTIES COMPILE_OPTIONS -w)
+
+if(ANDROID)
+    # The APK carries the assets, and the tests and tools are for the desktop.
+    return()
+endif()
 
 # Runtime assets live next to the executable.
 add_custom_command(TARGET galaxians POST_BUILD
@@ -96,6 +124,15 @@ target_include_directories(synth_test PRIVATE src)
 target_compile_options(synth_test PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
 add_test(NAME synth_test COMMAND synth_test)
+
+add_executable(touch_layout_test
+    tests/touch_layout_test.cpp
+    src/app/ScreenLayout.cpp
+)
+target_include_directories(touch_layout_test PRIVATE src)
+target_compile_options(touch_layout_test PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang>:-Wall -Wextra -Wpedantic>)
+add_test(NAME touch_layout_test COMMAND touch_layout_test)
 
 # Renders every sound effect to WAV files for listening: sound_preview <dir>
 add_executable(sound_preview

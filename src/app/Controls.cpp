@@ -22,6 +22,8 @@ Controls::~Controls()
 
 void Controls::handleEvent(const SDL_Event& event)
 {
+    touch_.handleEvent(event);
+
     // SDL also sends GAMEPAD_ADDED for pads already connected at startup.
     if (event.type == SDL_EVENT_GAMEPAD_ADDED) {
         if (SDL_Gamepad* pad = SDL_OpenGamepad(event.gdevice.which)) {
@@ -40,7 +42,7 @@ void Controls::handleEvent(const SDL_Event& event)
     }
 }
 
-game::Input Controls::read() const
+game::Input Controls::read()
 {
     const bool* keys = SDL_GetKeyboardState(nullptr);
     // Alt+Enter toggles fullscreen, so it must not also start a game.
@@ -62,6 +64,7 @@ game::Input Controls::read() const
                       SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_NORTH);
         input.start |= SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_START);
     }
+    touch_.read(input);
     return input;
 }
 

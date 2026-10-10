@@ -21,6 +21,12 @@ public:
 
     VkInstance instance() const { return instance_; }
     VkSurfaceKHR surface() const { return surface_; }
+
+    // Android destroys the window's surface while the app is in the background.
+    // The caller must first destroy the swapchain and make sure the device is idle.
+    void destroySurface();
+    // Returns false when the window has no surface to attach to yet.
+    bool createSurface(SDL_Window* window);
     VkPhysicalDevice physicalDevice() const { return physicalDevice_; }
     VkDevice device() const { return device_; }
     VkQueue queue() const { return queue_; }

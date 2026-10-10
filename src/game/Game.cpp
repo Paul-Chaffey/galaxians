@@ -218,9 +218,14 @@ void Game::renderTitle(std::vector<gfx::Sprite>& out) const
 
     if ((ticks_ / 30) % 2 == 0)
         drawCentredText(out, "PRESS FIRE TO START", 176.0f, kCyan);
+#ifdef __ANDROID__
+    drawCentredText(out, "ON-SCREEN BUTTONS", 200.0f, kGrey);
+    drawCentredText(out, "OR A GAMEPAD", 212.0f, kGrey);
+#else
     drawCentredText(out, "ARROWS MOVE - SPACE FIRES", 200.0f, kGrey);
     drawCentredText(out, "M MUTE - C CRT EFFECT", 212.0f, kGrey);
     drawCentredText(out, "F11 FULLSCREEN", 224.0f, kGrey);
+#endif
 }
 
 void Game::renderScoreTable(std::vector<gfx::Sprite>& out) const
